@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agentic Cart: where login, tokens, and data live</title>
+  <style>
+    :root {
+      --bg: #111318;
+      --panel: #1a1d24;
+      --line: #2c3140;
+      --text: #eceef2;
+      --muted: #9aa3b2;
+      --accent: #4d8dff;
+      --live: #1e3a5f;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font: 17px/1.45 "Segoe UI", system-ui, sans-serif;
+    }
+    .deck { height: 100%; overflow: hidden; }
+    .slide {
+      display: none;
+      height: calc(100% - 44px);
+      padding: 36px 48px 20px;
+      flex-direction: column;
+      gap: 14px;
+      overflow: auto;
+    }
+    .slide.on { display: flex; }
+    h1 { font-size: clamp(26px, 3vw, 38px); font-weight: 650; margin: 0; letter-spacing: -0.03em; line-height: 1.15; }
+    h2 { font-size: clamp(22px, 2.3vw, 30px); font-weight: 650; margin: 0; letter-spacing: -0.02em; }
+    h3 { font-size: 13px; font-weight: 650; margin: 0 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    p { margin: 0; }
+    .muted { color: var(--muted); }
+    .kicker { color: var(--accent); font-size: 12px; font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .grow { flex: 1; min-width: 200px; }
+    .box {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 12px 14px;
+    }
+    .box.live { background: var(--live); border-color: var(--accent); }
+    .box b { display: block; margin-bottom: 4px; }
+    .box small, .step small { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .steps { display: grid; gap: 8px; }
+    .step {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px 14px;
+      display: grid;
+      grid-template-columns: 32px 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .n {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: var(--accent); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+    code { font-family: Consolas, "Courier New", monospace; font-size: 0.9em; }
+    .note {
+      border-left: 3px solid var(--accent);
+      padding: 8px 12px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+    .note.warn { border-left-color: #c9a227; }
+    .grid2 { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    .grid3 { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    .layers { display: grid; gap: 10px; }
+    .layer-label { font-size: 12px; color: var(--muted); font-weight: 650; text-transform: uppercase; letter-spacing: 0.05em; }
+    ul { margin: 0; padding-left: 18px; }
+    li { margin: 3px 0; }
+    .footer {
+      position: fixed; left: 0; right: 0; bottom: 0;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 20px;
+      background: var(--bg);
+      border-top: 1px solid var(--line);
+      font-size: 13px; color: var(--muted);
+    }
+    .footer button {
+      background: transparent; color: var(--text);
+      border: 1px solid var(--line); border-radius: 4px;
+      padding: 4px 10px; cursor: pointer; font: inherit;
+    }
+    @media (min-width: 900px) {
+      .grid2 { grid-template-columns: 1fr 1fr; }
+      .grid3 { grid-template-columns: 1fr 1fr 1fr; }
+    }
+    @media print {
+      .footer { display: none; }
+      .slide { display: flex !important; height: auto; min-height: 100vh; page-break-after: always; overflow: visible; }
+    }
+  </style>
+</head>
+<body>
+  <div class="deck">
+
+    <section class="slide on">
+      <div class="kicker">Ashwin review</div>
+      <h1>Where login, tokens, and data live</h1>
+      <p class="muted">Checked against current source. Live GET https://api.agentic-cart.com/health on 7 Oct 2026: HTTP 200, header <code>server: Google Frontend</code>.</p>
+      <div class="grid3" style="margin-top:8px">
+        <div class="box live"><b>UI</b>Cloud Run <code>web</code><small>https://app.agentic-cart.com</small></div>
+        <div class="box live"><b>API</b>Cloud Run <code>api</code><small>https://api.agentic-cart.com</small></div>
+        <div class="box live"><b>Database</b>Cloud SQL Postgres<small>instance <code>agentic-cart-prd-postgres</code> / db <code>agentic_cart</code></small></div>
+      </div>
+      <p class="note">Walk the slides. Sit after if you want to go into a file.</p>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">His six questions</div>
+      <h2>What this deck answers</h2>
+      <table>
+        <thead><tr><th>#</th><th>Question</th><th>Slide</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>What happens when the user tries to log in? Auth mechanism?</td><td>Q1 + Secret A/B</td></tr>
+          <tr><td>2</td><td>What happens during the authentication process?</td><td>Callback + every later request</td></tr>
+          <tr><td>3</td><td>How data is imported. Source. Which GCP tables hold what?</td><td>Import table</td></tr>
+          <tr><td>4</td><td>How RLS is implemented?</td><td>Isolation</td></tr>
+          <tr><td>5</td><td>How is the data rendered on screen?</td><td>Render</td></tr>
+          <tr><td>6</td><td>How are recommendations generated?</td><td>Recs</td></tr>
+        </tbody>
+      </table>
+      <p class="muted">Plus, from the call: where the backend runs, has it moved to GCP, where each token is generated and saved, which database, how the user talks to the system. Architecture first, then sequence, then those six, then IAM still open.</p>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Overall</div>
+      <h2>One picture</h2>
+      <div class="layers">
+        <div>
+          <div class="layer-label">Merchant browser</div>
+          <div class="box">https://app.agentic-cart.com only. Cookie <code>ac_pivot_auth</code>. Never talks to Cloud SQL.</div>
+        </div>
+        <div>
+          <div class="layer-label">GCP europe-west1 / project agentic-cart-prd</div>
+          <div class="row">
+            <div class="box live grow"><b>Cloud Run web</b>Next.js. BFF <code>/api/pivot/*</code> reads cookie, sends Bearer to api.</div>
+            <div class="box live grow"><b>Cloud Run api</b>Express. OAuth callbacks, cron, dashboard JSON. PostgREST sidecar on 127.0.0.1:3000.</div>
+            <div class="box live grow"><b>Cloud SQL</b>Postgres 15. All merchant rows. Private. Browser has no password.</div>
+          </div>
+          <div class="box" style="margin-top:10px"><b>Cloud Scheduler</b>POST https://api.agentic-cart.com/api/system/cron/* with header <code>x-system-key</code>. Midnight sync + agent jobs. Timezone Europe/London.</div>
+        </div>
+        <div>
+          <div class="layer-label">Outside GCP</div>
+          <div class="row">
+            <div class="box grow"><b>Shopify</b>Login (OAuth) and catalog/inventory/orders (Admin API)</div>
+            <div class="box grow"><b>Google Ads / Meta</b>Spend pull. Tokens in <code>integration_config</code></div>
+            <div class="box grow"><b>Zendbox / Skio</b>Warehouse and subscriptions when connected</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Overall sequence</div>
+      <h2>Six processes, same systems</h2>
+      <div class="steps">
+        <div class="step"><div class="n">1</div><div><b>Login</b> Browser on app.agentic-cart.com. Shopify OAuth on api.agentic-cart.com. Shop token into Cloud SQL. Session cookie on app.</div></div>
+        <div class="step"><div class="n">2</div><div><b>Auth on every later click</b> <code>ac_pivot_auth</code> to BFF to Bearer. Api checks <code>store_members</code>. Sets <code>req.storeId</code>.</div></div>
+        <div class="step"><div class="n">3</div><div><b>Import</b> Scheduler hits cron/sync. Shopify / Google / Meta / Zendbox / Skio pulled into Cloud SQL tables.</div></div>
+        <div class="step"><div class="n">4</div><div><b>Calc</b> cron/calc writes <code>daily_snapshots</code>.</div></div>
+        <div class="step"><div class="n">5</div><div><b>Screen</b> Dashboard GET /api/dashboard/summary for that store. JSON. React paints. No browser-to-SQL.</div></div>
+        <div class="step"><div class="n">6</div><div><b>Recommendation cards</b> Scheduler agent jobs insert <code>agent_actions</code>. Chat does not write those cards.</div></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Systems</div>
+      <h2>What is running today</h2>
+      <table>
+        <thead><tr><th>What</th><th>Where</th><th>Host</th></tr></thead>
+        <tbody>
+          <tr><td>Merchant UI</td><td>Cloud Run <code>web</code>, europe-west1</td><td>https://app.agentic-cart.com</td></tr>
+          <tr><td>API</td><td>Cloud Run <code>api</code>, same project</td><td>https://api.agentic-cart.com</td></tr>
+          <tr><td>Load balancer</td><td>Google HTTPS LB</td><td>agentic-cart.com (<code>server: Google Frontend</code>)</td></tr>
+          <tr><td>Database</td><td>Cloud SQL Postgres 15, instance <code>agentic-cart-prd-postgres</code></td><td>db name <code>agentic_cart</code>. Not public to the browser.</td></tr>
+          <tr><td>API to Postgres</td><td>PostgREST sidecar on the api instance (<code>POSTGREST_URL</code>)</td><td>JS still uses supabase-js. Traffic goes to 127.0.0.1, not supabase.co. Auth is service_role JWT from <code>PGRST_JWT_SECRET</code>.</td></tr>
+          <tr><td>Cron</td><td>Cloud Scheduler</td><td>deploy/gcp/scheduler-jobs.json</td></tr>
+        </tbody>
+      </table>
+      <p class="note warn">Railway and Vercel are still in CORS as rollback. Live app. and api. traffic is GCP. Hosted Supabase Table Editor is a leftover console, not the live row store.</p>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Still open</div>
+      <h2>Cloud SQL password IAM. Not run yet.</h2>
+      <p>Secret Manager secret <code>prd-db-password</code> on project <code>agentic-cart-prd</code>. hp@ is Editor. <code>setIamPolicy</code> returns 403 from this laptop. Terraform hits the same org-policy block. Only Owner (Ashwin) can grant it.</p>
+      <div class="box live">
+        <h3>Two grants still needed</h3>
+        <p><code>gcloud secrets add-iam-policy-binding prd-db-password --project=agentic-cart-prd --member="serviceAccount:prd-backend@agentic-cart-prd.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"</code></p>
+        <p style="margin-top:10px"><code>gcloud projects add-iam-policy-binding agentic-cart-prd --member="serviceAccount:prd-backend@agentic-cart-prd.iam.gserviceaccount.com" --role="roles/cloudsql.client"</code></p>
+      </div>
+      <p class="note warn">Until those two run, we cannot lawfully pull the Cloud SQL password from Secret Manager. This is not an app-code change. It is IAM on Ashwin's Owner account.</p>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Names in env (no values)</div>
+      <h2>What each service is configured with</h2>
+      <table>
+        <thead><tr><th>Env</th><th>On</th><th>What it is</th></tr></thead>
+        <tbody>
+          <tr><td><code>FRONTEND_URL</code> / <code>NEXT_PUBLIC_SITE_URL</code></td><td>api / web</td><td>https://app.agentic-cart.com</td></tr>
+          <tr><td><code>API_PUBLIC_URL</code> / <code>NEXT_PUBLIC_API_BASE_URL</code></td><td>api / web</td><td>https://api.agentic-cart.com</td></tr>
+          <tr><td><code>SHOPIFY_CLIENT_ID</code> / <code>SHOPIFY_CLIENT_SECRET</code></td><td>api</td><td>Partner app. Used to exchange the OAuth code.</td></tr>
+          <tr><td><code>SHOPIFY_IDENTITY_REDIRECT_URI</code></td><td>api</td><td>Must match Partner Dashboard: /api/shopify-auth/callback on api host.</td></tr>
+          <tr><td><code>SHOPIFY_OFFLINE_REDIRECT_URI</code></td><td>api</td><td>/api/shopify-auth/offline/callback on api host.</td></tr>
+          <tr><td><code>SHOPIFY_SESSION_SECRET</code></td><td>api and web</td><td>HMAC key for ac_pivot_auth. Secret Manager name prd-jwt-signing-key. Same string on both or handoff 401s.</td></tr>
+          <tr><td><code>POSTGREST_URL</code> + <code>PGRST_JWT_SECRET</code></td><td>api</td><td>Sidecar http://127.0.0.1:3000. If POSTGREST_URL is unset, supabase-js falls back to SUPABASE_URL (hosted).</td></tr>
+          <tr><td><code>SYSTEM_API_KEY</code></td><td>api</td><td>Header x-system-key on Cloud Scheduler cron POSTs.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Before Q1</div>
+      <h2>Why test1 opens Glow Botanic</h2>
+      <p>The dashboard shows the shop that email is a member of. Not "whatever is on GCP".</p>
+      <div class="grid2">
+        <div class="box live"><b>test1@agentic-cart.com</b>Owner on Glow in <code>store_members</code>. That is why Glow loads.</div>
+        <div class="box"><b>NMU</b>This email is not Owner (or any role) on NMU. No membership row. 403 / no NMU dashboard.</div>
+      </div>
+      <p class="note">Punit sharing NMU is the only way this account sees NMU until someone invites it onto that shop. Not a missing Cloud Run box.</p>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Do not mix these</div>
+      <h2>Three secrets. "The token" is not one thing.</h2>
+      <div class="grid3">
+        <div class="box live">
+          <b>A. Shop token</b>
+          Shopify Admin API. Sync uses this.
+          <small>Cloud SQL <code>shopify_store_connections.access_token_ref</code>. Not in the browser cookie.</small>
+        </div>
+        <div class="box live">
+          <b>B. Merchant session</b>
+          Who is clicking the dashboard.
+          <small>Cookie <code>ac_pivot_auth</code> on app. HMAC. Identifies person + shop. No Admin token inside.</small>
+        </div>
+        <div class="box">
+          <b>C. Ads / warehouse</b>
+          Google, Meta, Zendbox, Skio.
+          <small><code>integration_config.config_json</code> access_token + refresh_token.</small>
+        </div>
+      </div>
+      <p class="muted">GCP Identity is how we log into the GCP console. Merchants never use it. Hosted Supabase email login is not the product login.</p>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Secret A</div>
+      <h2>Shopify shop token (sync)</h2>
+      <p class="muted">Issued on <code>GET /api/shopify-auth/offline/callback</code>. Refresh: POST https://{shop}/admin/oauth/access_token grant_type=refresh_token.</p>
+      <div class="grid2">
+        <div class="box">
+          <h3>After the store exists</h3>
+          Table <code>shopify_store_connections</code>
+          <ul>
+            <li><code>store_id</code></li>
+            <li><code>access_token_ref</code> (shpat_, plain TEXT)</li>
+            <li><code>refresh_token</code> (shprt_, plain TEXT)</li>
+            <li><code>access_token_expires_at</code> (~60 min)</li>
+            <li><code>refresh_token_expires_at</code> (~90 days, rotates)</li>
+            <li><code>status</code> connected / disconnected / token_invalid</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>First-time onboarding, no store row yet</h3>
+          Table <code>onboarding_progress</code>
+          <ul>
+            <li><code>pending_offline_access_token</code></li>
+            <li><code>pending_refresh_token</code></li>
+            <li>keyed by shopify_user_id + shopify_store_domain</li>
+          </ul>
+          <p class="muted" style="margin-top:8px">Copied onto shopify_store_connections at go-live. Not in the cookie.</p>
+        </div>
+      </div>
+      <p class="muted">Code: shopifyStoreReconnect.js, shopifyTokenService.js. Migration 20260712000001: tokens remain plaintext. At-rest app encryption is not done.</p>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">How the shop token is generated</div>
+      <h2>Two Shopify grants. Do not mix them.</h2>
+      <table>
+        <thead><tr><th></th><th>Online (person)</th><th>Offline (shop)</th></tr></thead>
+        <tbody>
+          <tr><td>Start</td><td>/api/shopify-auth/connect with grant_options[]=per-user</td><td>/api/shopify-auth/offline/connect after online succeeds</td></tr>
+          <tr><td>Callback</td><td>GET /api/shopify-auth/callback</td><td>GET /api/shopify-auth/offline/callback</td></tr>
+          <tr><td>Exchange</td><td>POST https://{shop}/admin/oauth/access_token {client_id, client_secret, code}</td><td>Same URL, plus expiring=1</td></tr>
+          <tr><td>Returns</td><td>access_token + associated_user (staff id, email, account_owner)</td><td>shpat_ + shprt_ + expires_in + refresh_token_expires_in + scope</td></tr>
+          <tr><td>Saved where</td><td>Not persisted as the Admin API token. Identity goes to ac.shopify.sid then ac_pivot_auth. Person row: app_users.</td><td>shopify_store_connections or onboarding_progress.pending_*</td></tr>
+          <tr><td>Used for</td><td>Who clicked Sign in</td><td>cron/sync, SKU fetch, billing, Admin API</td></tr>
+        </tbody>
+      </table>
+      <p class="note">Refresh of Secret A: POST same token URL with grant_type=refresh_token. New pair is written to the same Cloud SQL row before any Admin call uses it (shopifyTokenService.js). If Shopify returns invalid_grant, status becomes token_invalid. Merchant must re-authorize.</p>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Secret B</div>
+      <h2>Merchant session (two cookies, two hosts)</h2>
+      <table>
+        <thead><tr><th></th><th>Handshake only</th><th>After login (dashboard)</th></tr></thead>
+        <tbody>
+          <tr><td>Cookie</td><td><code>ac.shopify.sid</code></td><td><code>ac_pivot_auth</code></td></tr>
+          <tr><td>Host</td><td>api.agentic-cart.com</td><td>app.agentic-cart.com</td></tr>
+          <tr><td>TTL</td><td>15 min, MemoryStore</td><td>7 days sliding HMAC</td></tr>
+          <tr><td>Holds</td><td>shopify_user_id, email, shop domain, app_user_id</td><td>same identity fields + store_id. No shpat_ inside.</td></tr>
+          <tr><td>Signed with</td><td>SHOPIFY_SESSION_SECRET (express-session)</td><td>Same SHOPIFY_SESSION_SECRET on web and api (Secret Manager)</td></tr>
+        </tbody>
+      </table>
+      <div class="steps" style="margin-top:8px">
+        <div class="step"><div class="n">1</div><div>OAuth success: api puts a 15-min <code>pivot_token</code> on the redirect URL to app.agentic-cart.com/auth/complete.</div></div>
+        <div class="step"><div class="n">2</div><div><code>/api/pivot-handoff</code> on Cloud Run web verifies HMAC, sets <code>ac_pivot_auth</code>, drops the query param.</div></div>
+        <div class="step"><div class="n">3</div><div>Dashboard calls same-origin <code>/api/pivot/*</code>. BFF reads cookie, forwards <code>Authorization: Bearer</code> to Cloud Run api. Different host, so <code>ac.shopify.sid</code> is not sent.</div></div>
+        <div class="step"><div class="n">4</div><div>POST /api/shopify-auth/session-token (via BFF /api/pivot/shopify-auth/session-token) mints a 2-min Bearer and re-issues the 7-day cookie (sliding). Frontend refreshes ~30s before exp (shopifySessionToken.ts).</div></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">How ac_pivot_auth is generated</div>
+      <h2>HMAC. Not Shopify. Not GCP Identity. Not GoTrue.</h2>
+      <div class="steps">
+        <div class="step"><div class="n">1</div><div>API builds JSON: type, shopify_user_id, shopify_email, shopify_store_domain, account_owner, app_user_id, store_id, exp. File: backend/services/pivotAuthHandoff.js buildPivotHandoffIdentity.</div></div>
+        <div class="step"><div class="n">2</div><div>body = base64url(JSON). sig = HMAC-SHA256(SHOPIFY_SESSION_SECRET, body) as base64url. Token = body.sig. Same function for 15-min URL handoff, 7-day cookie, 2-min Bearer. Only TTL changes.</div></div>
+        <div class="step"><div class="n">3</div><div>API 302s to https://app.agentic-cart.com/auth/complete?pivot_token=... FRONTEND_URL. Browser is now on Cloud Run web.</div></div>
+        <div class="step"><div class="n">4</div><div>GET /api/pivot-handoff on web verifies HMAC with the same secret, Set-Cookie ac_pivot_auth, drops the query param. If secrets differ between web and api, this redirect lands on login with "Session handoff failed".</div></div>
+      </div>
+      <table>
+        <thead><tr><th>Shape</th><th>TTL default</th><th>Where it travels</th></tr></thead>
+        <tbody>
+          <tr><td>pivot_token query</td><td>15 min</td><td>URL. Can leak in logs. Short on purpose.</td></tr>
+          <tr><td>ac_pivot_auth cookie</td><td>7 days (PIVOT_SESSION_COOKIE_TTL_SEC)</td><td>httpOnly on app.agentic-cart.com</td></tr>
+          <tr><td>Authorization Bearer</td><td>120 sec (PIVOT_SESSION_TOKEN_TTL_SEC)</td><td>BFF to api. Not the shop token.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Secret C</div>
+      <h2>Ads and other integrations</h2>
+      <p>Table <code>integration_config</code>. Columns: <code>tenant_id</code>, <code>source</code> (google / meta / zendbox / skio), <code>config_json</code>, <code>enabled</code>.</p>
+      <div class="grid2">
+        <div class="box"><b>Google</b> oauthGoogle.js writes config_json.access_token and refresh_token.</div>
+        <div class="box"><b>Meta</b> oauthMeta.js upserts source=meta.</div>
+      </div>
+      <p class="note warn">Live code keys ads by tenant_id + source only (PR #252 store-scope is not merged). Sibling shops on the same tenant can share one ads row.</p>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Q1 Login</div>
+      <h2>What the user clicks</h2>
+      <div class="steps">
+        <div class="step"><div class="n">1</div><div>Browser is on https://app.agentic-cart.com/login (Cloud Run web). File: frontend/app/login/page.tsx</div></div>
+        <div class="step"><div class="n">2</div><div>"Continue with Shopify" goes to /auth/redirect?mode=returning. We never ask for *.myshopify.com.</div></div>
+        <div class="step"><div class="n">3</div><div>After 1.5s, browser is sent to Cloud Run api:<br><code>https://api.agentic-cart.com/api/shopify-auth/install?mode=returning</code></div></div>
+        <div class="step"><div class="n">4</div><div>If Shopify has not given a shop yet, api 302s to<br><code>https://admin.shopify.com/oauth/install?client_id={SHOPIFY_CLIENT_ID}</code><br>Shopify's picker identifies the shop. This hop is window.location to the api host (not the BFF). Install/connect/callback are in PIVOT_NON_PROXY.</div></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Q1 other shapes</div>
+      <h2>Same mechanism. Four entries.</h2>
+      <table>
+        <thead><tr><th>Who</th><th>Browser starts at</th><th>What is different</th></tr></thead>
+        <tbody>
+          <tr><td>Returning owner</td><td>/login then /auth/redirect?mode=returning then /api/shopify-auth/install?mode=returning</td><td>cta_mode=returning. After OAuth, /auth/complete then dashboard or store picker (GET /api/shopify-auth/my-stores).</td></tr>
+          <tr><td>New install</td><td>mode=new</td><td>cta_mode=new. Offline token first lands in onboarding_progress. Wizard at /store-onboarding/* until go-live copies it to shopify_store_connections.</td></tr>
+          <tr><td>Invited staff</td><td>/api/shopify-auth/invite/connect?token=...</td><td>Online only. No offline shop token. acceptStoreInvite inserts store_members. pivot_token already has store_id + role.</td></tr>
+          <tr><td>Add another store</td><td>/dashboard/add-new-store then /install?mode=add_store&amp;caller=...</td><td>ac_pivot_auth is not sent to api host. caller HMAC stamps owner identity onto ac.shopify.sid. Offline token for the new shop. Must be account_owner on that shop.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Q1 + Q2</div>
+      <h2>What Cloud Run api does with the callback</h2>
+      <div class="steps">
+        <div class="step"><div class="n">5</div><div>Shopify returns shop + hmac. /install forwards to /api/shopify-auth/connect. Nonce written to Cloud SQL <code>oauth_state</code>. Then 302 to {shop}/admin/oauth/authorize (per-user grant). Redirect URI: SHOPIFY_IDENTITY_REDIRECT_URI on api.agentic-cart.com.</div></div>
+        <div class="step"><div class="n">6</div><div>Consent. GET /api/shopify-auth/callback?code=&amp;shop=&amp;state=. oauth_state row deleted (no replay). POST https://{shop}/admin/oauth/access_token with client_id, client_secret, code.</div></div>
+        <div class="step"><div class="n">7</div><div>Response: access_token + associated_user (staff id, email, account_owner). Written onto ac.shopify.sid (15 min). app_users found/created by email. store_members.shopify_user_id patched if they already belong to this shop.</div></div>
+        <div class="step"><div class="n">8</div><div>Then offline handshake /api/shopify-auth/offline/callback. Expiring shop token saved as Secret A (shopify_store_connections or onboarding_progress).</div></div>
+        <div class="step"><div class="n">9</div><div>Browser sent back to https://app.agentic-cart.com/auth/complete?pivot_token=... /api/pivot-handoff sets ac_pivot_auth (7 days). Then dashboard or store picker (GET /api/shopify-auth/my-stores).</div></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Q2 Auth process</div>
+      <h2>Every later dashboard request</h2>
+      <div class="steps">
+        <div class="step"><div class="n">1</div><div>Browser only talks to https://app.agentic-cart.com. Sends ac_pivot_auth. Never gets a Cloud SQL password. Never calls PostgREST.</div></div>
+        <div class="step"><div class="n">2</div><div>BFF /api/pivot/* reads cookie, adds Authorization Bearer, copies x-active-store-id (frontend/lib/apiClient.ts), calls api.agentic-cart.com.</div></div>
+        <div class="step"><div class="n">3</div><div>requireUserOrPivot: product path is the Shopify pivot Bearer. Login button is Shopify OAuth, not email. Live <code>main</code> still accepts a leftover hosted-Supabase JWT if a Bearer is sent. Removing that path is PR #253 (not merged).</div></div>
+        <div class="step"><div class="n">4</div><div>requireTenantOrPivot: active store_members for that app_users.id. Preferred store is x-active-store-id or shop domain on the token. Not a member of the requested store: 403. No fallback to another shop.</div></div>
+        <div class="step"><div class="n">5</div><div>requirePivotStoreScope: no req.storeId = refuse. Dashboard queries .eq store_id. That is why test1 cannot see NMU.</div></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">If it fails</div>
+      <h2>What the user sees, and why</h2>
+      <table>
+        <thead><tr><th>Symptom</th><th>Cause</th><th>Where</th></tr></thead>
+        <tbody>
+          <tr><td>401 Missing token / Shopify sign-in required</td><td>No ac_pivot_auth, or HMAC verify failed, or expired</td><td>middleware.ts, requireUserOrPivot</td></tr>
+          <tr><td>Session handoff failed</td><td>SHOPIFY_SESSION_SECRET on web != api</td><td>/api/pivot-handoff</td></tr>
+          <tr><td>403 Store not found or access denied / Active store required</td><td>No active store_members row for that shop, or no x-active-store-id on a multi-store user</td><td>tenant.js, tenantAccess.js</td></tr>
+          <tr><td>Store no longer connected</td><td>App uninstalled. shopify_store_connections.status disconnected, access_token_ref cleared</td><td>webhook /app/uninstalled</td></tr>
+          <tr><td>Reconnect Shopify</td><td>Refresh returned invalid_grant. status=token_invalid</td><td>shopifyTokenService.js</td></tr>
+          <tr><td>Idle sign-out after 15 min</td><td>Frontend idle timer (useIdleTimeout). Separate from the 7-day cookie TTL.</td><td>dashboard UI, not the cookie</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Q3 Import</div>
+      <h2>Sources and Cloud SQL tables</h2>
+      <p class="muted">Midnight: Cloud Scheduler POST /api/system/cron/sync (cron-sync 00:00 Europe/London, syncJob.js, up to 3600s on Cloud Run). Dashboard button: POST /api/sync catch-up, 7d orders + inventory + 14d ads, 90s deadline (DASHBOARD_SYNC_DEADLINE_MS). Both write through PostgREST into Cloud SQL. Fact rows carry tenant_id and store_id.</p>
+      <table>
+        <thead><tr><th>Source</th><th>Auth</th><th>Tables</th></tr></thead>
+        <tbody>
+          <tr><td>Shopify Admin (cron/sync)</td><td>shopify_store_connections.access_token_ref</td><td>skus, inventory_levels, orders</td></tr>
+          <tr><td>Google Ads</td><td>integration_config source=google, config_json.refresh_token</td><td>ad_campaign_daily, ad_sku_daily, ad_item_sku_map, ad_spend_daily, ad_spend_account_daily</td></tr>
+          <tr><td>Meta Ads</td><td>integration_config source=meta</td><td>same ad_* (platform=meta on sku rows)</td></tr>
+          <tr><td>Zendbox</td><td>integration_config source=zendbox</td><td>inventory_levels, incoming_inventory</td></tr>
+          <tr><td>Skio</td><td>integration_config source=skio</td><td>subscription_data</td></tr>
+          <tr><td>cron/calc</td><td>reads our tables</td><td>daily_snapshots (mathEngine.js)</td></tr>
+          <tr><td>Identity (OAuth, not cron)</td><td></td><td>app_users, stores, store_members, oauth_state, onboarding_progress</td></tr>
+          <tr><td>Merchant / admin (not cron)</td><td>session</td><td>manufacturing_orders (entered in-app / ingest)</td></tr>
+          <tr><td>Agent jobs</td><td>x-system-key</td><td>agent_actions, agent_runs, agent_action_approvals</td></tr>
+          <tr><td>Job health</td><td></td><td>sync_status</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Q3 extra</div>
+      <h2>Identity tables (OAuth writes these, not cron)</h2>
+      <table>
+        <thead><tr><th>Table</th><th>Key</th><th>What a row is</th></tr></thead>
+        <tbody>
+          <tr><td>app_users</td><td>id (uuid). Email unique (normalized).</td><td>Person. Created at OAuth by email.</td></tr>
+          <tr><td>stores</td><td>id. Unique shopify_domain / shopify_store_id.</td><td>One Shopify shop. tenant_id links to the old tenant bag.</td></tr>
+          <tr><td>store_members</td><td>app_user_id + store_id unique. status active/removed. role Owner/Approver/Viewer. shopify_user_id per shop.</td><td>Who may see that shop. This is the live ACL.</td></tr>
+          <tr><td>oauth_state</td><td>nonce</td><td>One-time CSRF. Deleted when callback consumes it.</td></tr>
+          <tr><td>onboarding_progress</td><td>shopify_user_id + shopify_store_domain (plus app_user_id)</td><td>Wizard + pending offline token before the store row exists.</td></tr>
+          <tr><td>shopify_store_connections</td><td>store_id unique</td><td>Shop Admin token + refresh + status.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Q4 Isolation</div>
+      <h2>How RLS is implemented</h2>
+      <div class="grid2">
+        <div class="box">
+          <b>Still in the schema (not the live gate)</b>
+          <p>ENABLE ROW LEVEL SECURITY from hosted Supabase. Policy:</p>
+          <p><code>tenant_id IN (SELECT tenant_id FROM user_tenants WHERE user_id = auth.uid())</code></p>
+          <p class="muted" style="margin-top:8px">auth.uid() is GoTrue. Live api uses PostgREST service_role, which bypasses RLS. user_tenants is not how merchants sign in.</p>
+        </div>
+        <div class="box live">
+          <b>Live gate (Express)</b>
+          <ol>
+            <li>Cookie / Bearer decodes to a Shopify person.</li>
+            <li>store_members.status = active on the requested store.</li>
+            <li>req.storeId set. Queries .eq("store_id", req.storeId). Sibling shop without membership: 403.</li>
+          </ol>
+          <p class="muted" style="margin-top:8px">requireUserOrPivot + requireTenantOrPivot + requirePivotStoreScope</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Q5 Render</div>
+      <h2>How data is drawn on screen</h2>
+      <div class="steps">
+        <div class="step"><div class="n">1</div><div>Merchant is on https://app.agentic-cart.com/dashboard (Cloud Run web, Next.js).</div></div>
+        <div class="step"><div class="n">2</div><div>Client (apiClient.ts) calls same-origin:<br>
+          GET /api/pivot/dashboard/summary<br>
+          GET /api/pivot/dashboard/ops-summary<br>
+          GET /api/pivot/dashboard/products-at-risk<br>
+          GET /api/pivot/dashboard/healthy-inventory<br>
+          GET /api/pivot/sync/status<br>
+          plus x-active-store-id. Recommendations page: GET /api/pivot/stores/{id}/agent-recommendations</div></div>
+        <div class="step"><div class="n">3</div><div>BFF strips /api/pivot, forwards to Cloud Run api GET /api/dashboard/summary (backend/routes/dashboard.js). Same for the others.</div></div>
+        <div class="step"><div class="n">4</div><div>Route requires req.storeId, loads that stores row, getDashboardSummary reads daily_snapshots / skus / inventory.</div></div>
+        <div class="step"><div class="n">5</div><div>JSON back. React paints. Empty membership is 401/403, not a SQL dump.</div></div>
+      </div>
+      <p class="note">Recommendations page: GET /api/stores/:storeId/agent-recommendations lists agent_actions for that store. Approve writes agent_action_approvals. Does not change Google Ads by itself.</p>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Q6 Recommendations</div>
+      <h2>How the cards are generated</h2>
+      <p class="muted">Not the chat box. Cloud Scheduler POST with header x-system-key. Schedules in deploy/gcp/scheduler-jobs.json (Europe/London).</p>
+      <div class="grid2">
+        <div class="col">
+          <div class="step"><div class="n">1</div><div>POST /api/system/cron/agents/sku-ads, campaign, demand, fulfilment, supply.</div></div>
+          <div class="step"><div class="n">2</div><div>Skip if plan / trial / flag disallows.</div></div>
+          <div class="step"><div class="n">3</div><div>Read Cloud SQL already synced for that store_id.</div></div>
+          <div class="step"><div class="n">4</div><div>Write <code>agent_actions</code> status=pending (sku-ads via writeSkuAdsInboxFromPlan, others via upsertAgentAction). Log <code>agent_runs</code>.</div></div>
+        </div>
+        <div>
+          <div class="box" style="margin-bottom:8px"><b>sku-ads</b> 06:15 daily. 30d ad_sku_daily vs stock cover. Does not write Google Ads.</div>
+          <div class="box" style="margin-bottom:8px"><b>campaign</b> 06:00 daily. ad_campaign_daily budget vs performance</div>
+          <div class="box" style="margin-bottom:8px"><b>demand</b> hourly. spend vs max-safe on daily_snapshots</div>
+          <div class="box" style="margin-bottom:8px"><b>fulfilment / supply</b> hourly. inbound / manufacturing / cover</div>
+          <div class="box"><b>/api/agent/ask</b> Chat. Same store scope. Does not insert these cards.</div>
+        </div>
+      </div>
+      <p class="muted" style="margin-top:8px">Flags (string "true" only): AGENT_SKU_ADS_ENABLED, AGENT_CAMPAIGN_ENABLED, AGENT_DEMAND_ENABLED, AGENT_FULFILMENT_ENABLED. Supply has no off-flag in agentFeatureFlags.js (always in visibleAgentIds). Also gated by Growth+ / trial via storeAllowsAgent + getStoreServiceStatus. Approve: POST /api/pivot/stores/{id}/agent-recommendations/{id}/approve. Does not write Google Ads.</p>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Not this</div>
+      <h2>What merchants do not use</h2>
+      <div class="grid2">
+        <div class="box">
+          <b>Not login</b>
+          <ul>
+            <li>GCP Identity / IAP (our GCP console only)</li>
+            <li>Hosted Supabase email magic link as the login button. Live API still has a leftover JWT accept path if a Bearer is sent (main). Product UI signs in with Shopify.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <b>Not the live database</b>
+          <ul>
+            <li>Hosted Supabase Table Editor</li>
+            <li>Railway Postgres (rollback only)</li>
+          </ul>
+        </div>
+      </div>
+      <p class="note">If Table Editor disagrees with app.agentic-cart.com, Table Editor is leftover. Live is Cloud SQL behind Cloud Run api.</p>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Close</div>
+      <h2>Same picture, six answers</h2>
+      <table>
+        <thead><tr><th>Q</th><th>Answer</th></tr></thead>
+        <tbody>
+          <tr><td>1 Login</td><td>Shopify OAuth. Backend on Cloud Run api. Shop token in shopify_store_connections. Session cookie ac_pivot_auth on Cloud Run web.</td></tr>
+          <tr><td>2 Auth</td><td>Cookie to BFF Bearer. store_members must be active. req.storeId on every query. Live main still accepts a leftover hosted-Supabase JWT if sent; login button does not use it.</td></tr>
+          <tr><td>3 Import</td><td>Scheduler pulls Shopify / Google / Meta / Zendbox / Skio into the tables on the map. Database is Cloud SQL agentic_cart.</td></tr>
+          <tr><td>4 RLS</td><td>Postgres policies still exist (auth.uid / user_tenants). Live api uses PostgREST service_role so they do not gate merchants. Live gate is Express store_id.</td></tr>
+          <tr><td>5 Render</td><td>Next.js fetches api JSON for the active store. React paints. Browser never talks to SQL.</td></tr>
+          <tr><td>6 Recs</td><td>Scheduler agent jobs write agent_actions (hourly or 06:00 London, not all daily). Chat does not generate the cards.</td></tr>
+        </tbody>
+      </table>
+      <p class="muted">test1 / Glow is membership. Invite onto NMU if you need to see that shop.</p>
+    </section>
+
+  </div>
+  <div class="footer">
+    <span>Agentic Cart. Where login, tokens, and data live.</span>
+    <span>
+      <button type="button" id="prev">Prev</button>
+      <span id="pos">1 / 1</span>
+      <button type="button" id="next">Next</button>
+      (arrows or space)
+    </span>
+  </div>
+  <script>
+    const slides = [...document.querySelectorAll(".slide")];
+    let i = 0;
+    function show(n) {
+      i = Math.max(0, Math.min(slides.length - 1, n));
+      slides.forEach((s, k) => s.classList.toggle("on", k === i));
+      document.getElementById("pos").textContent = (i + 1) + " / " + slides.length;
+    }
+    document.getElementById("prev").onclick = () => show(i - 1);
+    document.getElementById("next").onclick = () => show(i + 1);
+    document.addEventListener("keydown", (e) => {
+      if (["ArrowRight", "ArrowDown", "PageDown", " "].includes(e.key)) { e.preventDefault(); show(i + 1); }
+      if (["ArrowLeft", "ArrowUp", "PageUp", "Backspace"].includes(e.key)) { e.preventDefault(); show(i - 1); }
+      if (e.key === "Home") show(0);
+      if (e.key === "End") show(slides.length - 1);
+    });
+    show(0);
+  </script>
+</body>
+</html>
