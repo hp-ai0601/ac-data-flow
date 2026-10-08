@@ -112,7 +112,7 @@
     <section class="slide on">
       <div class="kicker">Ashwin review</div>
       <h1>Where login, tokens, and data live</h1>
-      <p class="muted">Checked against current source. Live GET https://api.agentic-cart.com/health on 7 Oct 2026: HTTP 200, header <code>server: Google Frontend</code>.</p>
+      <p class="muted">Checked against <code>main</code> after #252 and #253 merged (8 Oct 2026). Live GET https://api.agentic-cart.com/health: HTTP 200, header <code>server: Google Frontend</code>. Cloud Run follows the GitHub deploy.</p>
       <div class="grid3" style="margin-top:8px">
         <div class="box live"><b>UI</b>Cloud Run <code>web</code><small>https://app.agentic-cart.com</small></div>
         <div class="box live"><b>API</b>Cloud Run <code>api</code><small>https://api.agentic-cart.com</small></div>
@@ -351,12 +351,12 @@
     <section class="slide">
       <div class="kicker">Secret C</div>
       <h2>Ads and other integrations</h2>
-      <p>Table <code>integration_config</code>. Columns: <code>tenant_id</code>, <code>source</code> (google / meta / zendbox / skio), <code>config_json</code>, <code>enabled</code>.</p>
+      <p>Table <code>integration_config</code>. Ads rows are unique on <code>tenant_id + source + store_scope</code>. Shopify / Skio / Zendbox stay tenant-level with empty <code>store_scope</code>.</p>
       <div class="grid2">
-        <div class="box"><b>Google</b> oauthGoogle.js writes config_json.access_token and refresh_token.</div>
-        <div class="box"><b>Meta</b> oauthMeta.js upserts source=meta.</div>
+        <div class="box"><b>Google / Meta</b> OAuth writes <code>store_id</code> + <code>store_scope</code>. Connect without an active store is 403. Sibling shops do not share one ads row.</div>
+        <div class="box"><b>Layer 0 spend</b> <code>ad_spend_account_daily</code> unique is <code>tenant_id, platform, date, store_id</code> (Cloud SQL applied 8 Oct 2026). Nightly cron fans out per store.</div>
       </div>
-      <p class="note warn">Live code keys ads by tenant_id + source only (PR #252 store-scope is not merged). Sibling shops on the same tenant can share one ads row.</p>
+      <p class="note">Source-health and ads cron use the active store, not tenant-wide <code>tools_selected</code>. Merged #252.</p>
     </section>
 
     <section class="slide">
@@ -402,7 +402,7 @@
       <div class="steps">
         <div class="step"><div class="n">1</div><div>Browser only talks to https://app.agentic-cart.com. Sends ac_pivot_auth. Never gets a Cloud SQL password. Never calls PostgREST.</div></div>
         <div class="step"><div class="n">2</div><div>BFF /api/pivot/* reads cookie, adds Authorization Bearer, copies x-active-store-id (frontend/lib/apiClient.ts), calls api.agentic-cart.com.</div></div>
-        <div class="step"><div class="n">3</div><div>requireUserOrPivot: product path is the Shopify pivot Bearer. Login button is Shopify OAuth, not email. Live <code>main</code> still accepts a leftover hosted-Supabase JWT if a Bearer is sent. Removing that path is PR #253 (not merged).</div></div>
+        <div class="step"><div class="n">3</div><div>requireUserOrPivot: product path is the Shopify pivot Bearer. Login button is Shopify OAuth, not email. Leftover hosted-Supabase JWT login is gone on <code>main</code> (#253). POST <code>/api/me/tenant</code> is 410.</div></div>
         <div class="step"><div class="n">4</div><div>requireTenantOrPivot: active store_members for that app_users.id. Preferred store is x-active-store-id or shop domain on the token. Not a member of the requested store: 403. No fallback to another shop.</div></div>
         <div class="step"><div class="n">5</div><div>requirePivotStoreScope: no req.storeId = refuse. Dashboard queries .eq store_id. That is why test1 cannot see NMU.</div></div>
       </div>
@@ -532,7 +532,7 @@
           <b>Not login</b>
           <ul>
             <li>GCP Identity / IAP (our GCP console only)</li>
-            <li>Hosted Supabase email magic link as the login button. Live API still has a leftover JWT accept path if a Bearer is sent (main). Product UI signs in with Shopify.</li>
+            <li>Hosted Supabase email magic link. Product UI signs in with Shopify. Leftover JWT accept path was removed on <code>main</code> (#253).</li>
           </ul>
         </div>
         <div class="box">
@@ -553,7 +553,7 @@
         <thead><tr><th>Q</th><th>Answer</th></tr></thead>
         <tbody>
           <tr><td>1 Login</td><td>Shopify OAuth. Backend on Cloud Run api. Shop token in shopify_store_connections. Session cookie ac_pivot_auth on Cloud Run web.</td></tr>
-          <tr><td>2 Auth</td><td>Cookie to BFF Bearer. store_members must be active. req.storeId on every query. Live main still accepts a leftover hosted-Supabase JWT if sent; login button does not use it.</td></tr>
+          <tr><td>2 Auth</td><td>Cookie to BFF Bearer. store_members must be active. req.storeId on every query. Product login is Shopify pivot only (#253).</td></tr>
           <tr><td>3 Import</td><td>Scheduler pulls Shopify / Google / Meta / Zendbox / Skio into the tables on the map. Database is Cloud SQL agentic_cart.</td></tr>
           <tr><td>4 RLS</td><td>Postgres policies still exist (auth.uid / user_tenants). Live api uses PostgREST service_role so they do not gate merchants. Live gate is Express store_id.</td></tr>
           <tr><td>5 Render</td><td>Next.js fetches api JSON for the active store. React paints. Browser never talks to SQL.</td></tr>
