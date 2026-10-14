@@ -112,7 +112,7 @@
     <section class="slide on">
       <div class="kicker">Ashwin review</div>
       <h1>Where login, tokens, and data live</h1>
-      <p class="muted">Checked against <code>main</code> after #252 and #253 merged (8 Oct 2026). Live GET https://api.agentic-cart.com/health: HTTP 200, header <code>server: Google Frontend</code>. Cloud Run follows the GitHub deploy.</p>
+      <p class="muted">Updated 14 Oct 2026. Live is Cloud Run + Cloud SQL after #257–#260. GET https://api.agentic-cart.com/health: HTTP 200, <code>server: Google Frontend</code>. Hosted Supabase / Railway / Vercel do not serve <code>app.</code> or <code>api.</code> — drop those Friday.</p>
       <div class="grid3" style="margin-top:8px">
         <div class="box live"><b>UI</b>Cloud Run <code>web</code><small>https://app.agentic-cart.com</small></div>
         <div class="box live"><b>API</b>Cloud Run <code>api</code><small>https://api.agentic-cart.com</small></div>
@@ -135,7 +135,7 @@
           <tr><td>6</td><td>How are recommendations generated?</td><td>Recs</td></tr>
         </tbody>
       </table>
-      <p class="muted">Plus, from the call: where the backend runs, has it moved to GCP, where each token is generated and saved, which database, how the user talks to the system. Architecture first, then sequence, then those six, then IAM still open.</p>
+      <p class="muted">Plus, from the call: where the backend runs, has it moved to GCP, where each token is generated and saved, which database, how the user talks to the system. Architecture first, then sequence, then those six, then leftover hosts to delete Friday.</p>
     </section>
 
     <section class="slide">
@@ -173,7 +173,7 @@
         <div class="step"><div class="n">1</div><div><b>Login</b> Browser on app.agentic-cart.com. Shopify OAuth on api.agentic-cart.com. Shop token into Cloud SQL. Session cookie on app.</div></div>
         <div class="step"><div class="n">2</div><div><b>Auth on every later click</b> <code>ac_pivot_auth</code> to BFF to Bearer. Api checks <code>store_members</code>. Sets <code>req.storeId</code>.</div></div>
         <div class="step"><div class="n">3</div><div><b>Import</b> Scheduler hits cron/sync. Shopify / Google / Meta / Zendbox / Skio pulled into Cloud SQL tables.</div></div>
-        <div class="step"><div class="n">4</div><div><b>Calc</b> cron/calc writes <code>daily_snapshots</code>.</div></div>
+        <div class="step"><div class="n">4</div><div><b>Calc</b> cron/calc every 15 min writes <code>daily_snapshots</code> with Shopify-first on-hand (<code>shopify_on_hand</code> / <code>effective_on_hand</code> / <code>on_hand_source</code>).</div></div>
         <div class="step"><div class="n">5</div><div><b>Screen</b> Dashboard GET /api/dashboard/summary for that store. JSON. React paints. No browser-to-SQL.</div></div>
         <div class="step"><div class="n">6</div><div><b>Recommendation cards</b> Scheduler agent jobs insert <code>agent_actions</code>. Chat does not write those cards.</div></div>
       </div>
@@ -193,19 +193,22 @@
           <tr><td>Cron</td><td>Cloud Scheduler</td><td>deploy/gcp/scheduler-jobs.json</td></tr>
         </tbody>
       </table>
-      <p class="note warn">Railway and Vercel are still in CORS as rollback. Live app. and api. traffic is GCP. Hosted Supabase Table Editor is a leftover console, not the live row store.</p>
+      <p class="note warn">Live <code>app.</code> / <code>api.</code> traffic is GCP. Hosted Supabase Table Editor is a leftover console, not the live row store.</p>
     </section>
 
     <section class="slide">
-      <div class="kicker">Still open</div>
-      <h2>Cloud SQL password IAM. Not run yet.</h2>
-      <p>Secret Manager secret <code>prd-db-password</code> on project <code>agentic-cart-prd</code>. hp@ is Editor. <code>setIamPolicy</code> returns 403 from this laptop. Terraform hits the same org-policy block. Only Owner (Ashwin) can grant it.</p>
+      <div class="kicker">Friday</div>
+      <h2>Cloud SQL is live. Delete leftover hosts.</h2>
+      <p>Merchants already read and write Cloud SQL through Cloud Run. Sidecars (PostgREST + GoTrue) sit on the api instance. Dashboard on-hand matches Shopify rows in <code>inventory_levels</code>.</p>
       <div class="box live">
-        <h3>Two grants still needed</h3>
-        <p><code>gcloud secrets add-iam-policy-binding prd-db-password --project=agentic-cart-prd --member="serviceAccount:prd-backend@agentic-cart-prd.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"</code></p>
-        <p style="margin-top:10px"><code>gcloud projects add-iam-policy-binding agentic-cart-prd --member="serviceAccount:prd-backend@agentic-cart-prd.iam.gserviceaccount.com" --role="roles/cloudsql.client"</code></p>
+        <h3>Drop these — they are not serving production</h3>
+        <ul>
+          <li>Hosted Supabase project (Auth + Table Editor)</li>
+          <li>Railway API</li>
+          <li>Vercel frontend</li>
+        </ul>
       </div>
-      <p class="note warn">Until those two run, we cannot lawfully pull the Cloud SQL password from Secret Manager. This is not an app-code change. It is IAM on Ashwin's Owner account.</p>
+      <p class="note">Do not cut DNS. <code>app.</code> and <code>api.</code> already point at the Google HTTPS LB. Product login is Shopify OAuth + <code>ac_pivot_auth</code>, not hosted Supabase Auth.</p>
     </section>
 
     <section class="slide">
@@ -220,7 +223,7 @@
           <tr><td><code>SHOPIFY_IDENTITY_REDIRECT_URI</code></td><td>api</td><td>Must match Partner Dashboard: /api/shopify-auth/callback on api host.</td></tr>
           <tr><td><code>SHOPIFY_OFFLINE_REDIRECT_URI</code></td><td>api</td><td>/api/shopify-auth/offline/callback on api host.</td></tr>
           <tr><td><code>SHOPIFY_SESSION_SECRET</code></td><td>api and web</td><td>HMAC key for ac_pivot_auth. Secret Manager name prd-jwt-signing-key. Same string on both or handoff 401s.</td></tr>
-          <tr><td><code>POSTGREST_URL</code> + <code>PGRST_JWT_SECRET</code></td><td>api</td><td>Sidecar http://127.0.0.1:3000. If POSTGREST_URL is unset, supabase-js falls back to SUPABASE_URL (hosted).</td></tr>
+          <tr><td><code>POSTGREST_URL</code> + <code>PGRST_JWT_SECRET</code></td><td>api</td><td>Sidecar http://127.0.0.1:3000. Hosted <code>SUPABASE_URL</code> fallback was removed (#257). Boot fails if the sidecar is missing.</td></tr>
           <tr><td><code>SYSTEM_API_KEY</code></td><td>api</td><td>Header x-system-key on Cloud Scheduler cron POSTs.</td></tr>
         </tbody>
       </table>
@@ -427,7 +430,7 @@
     <section class="slide">
       <div class="kicker">Q3 Import</div>
       <h2>Sources and Cloud SQL tables</h2>
-      <p class="muted">Midnight: Cloud Scheduler POST /api/system/cron/sync (cron-sync 00:00 Europe/London, syncJob.js, up to 3600s on Cloud Run). Dashboard button: POST /api/sync catch-up, 7d orders + inventory + 14d ads, 90s deadline (DASHBOARD_SYNC_DEADLINE_MS). Both write through PostgREST into Cloud SQL. Fact rows carry tenant_id and store_id.</p>
+      <p class="muted">Midnight: Cloud Scheduler POST /api/system/cron/sync (cron-sync 00:00 Europe/London, syncJob.js, up to 3600s on Cloud Run). Dashboard load: POST /api/sync catch-up if last refresh &gt; 15 min — 7d orders + inventory + 14d ads, 90s deadline. Calc: Scheduler 5,20,35,50 * * * * writes daily_snapshots. Both write through PostgREST into Cloud SQL. Fact rows carry tenant_id and store_id.</p>
       <table>
         <thead><tr><th>Source</th><th>Auth</th><th>Tables</th></tr></thead>
         <tbody>
@@ -436,7 +439,7 @@
           <tr><td>Meta Ads</td><td>integration_config source=meta</td><td>same ad_* (platform=meta on sku rows)</td></tr>
           <tr><td>Zendbox</td><td>integration_config source=zendbox</td><td>inventory_levels, incoming_inventory</td></tr>
           <tr><td>Skio</td><td>integration_config source=skio</td><td>subscription_data</td></tr>
-          <tr><td>cron/calc</td><td>reads our tables</td><td>daily_snapshots (mathEngine.js)</td></tr>
+          <tr><td>cron/calc</td><td>reads our tables</td><td>daily_snapshots: shopify_on_hand, zendbox_on_hand, effective_on_hand, on_hand_source (#260)</td></tr>
           <tr><td>Identity (OAuth, not cron)</td><td></td><td>app_users, stores, store_members, oauth_state, onboarding_progress</td></tr>
           <tr><td>Merchant / admin (not cron)</td><td>session</td><td>manufacturing_orders (entered in-app / ingest)</td></tr>
           <tr><td>Agent jobs</td><td>x-system-key</td><td>agent_actions, agent_runs, agent_action_approvals</td></tr>
@@ -459,6 +462,29 @@
           <tr><td>shopify_store_connections</td><td>store_id unique</td><td>Shop Admin token + refresh + status.</td></tr>
         </tbody>
       </table>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Q3 on-hand</div>
+      <h2>Sellable stock is Shopify-first</h2>
+      <p>One helper: latest <code>inventory_levels</code> row per SKU + source, ordered <code>id DESC</code> (#258). Dashboard table, family master, and <code>daily_snapshots.effective_on_hand</code> use that. Zendbox is warehouse / 3PL — reconnect health only, not the SKU table.</p>
+      <div class="grid2">
+        <div class="box live">
+          <b>NMU 14 Oct (settled)</b>
+          <ul>
+            <li>Meno Gut 4,789 Shopify (Zendbox 4,803 unused)</li>
+            <li>MENO 14,286 Shopify (Zendbox 14,419 unused)</li>
+            <li>Cover 365d / 87d → Ad Spend at Risk £0</li>
+          </ul>
+        </div>
+        <div class="box">
+          <b>Do not mix</b>
+          <ul>
+            <li>Opening the dashboard can POST /api/sync. First paint may still show the previous inventory row until the job finishes (~17s).</li>
+            <li>Wait until Last sync is not “just now” before screenshot / QA.</li>
+          </ul>
+        </div>
+      </div>
     </section>
 
     <section class="slide">
@@ -538,8 +564,8 @@
         <div class="box">
           <b>Not the live database</b>
           <ul>
-            <li>Hosted Supabase Table Editor</li>
-            <li>Railway Postgres (rollback only)</li>
+            <li>Hosted Supabase Table Editor / Auth</li>
+            <li>Railway API and Vercel frontend (delete Friday)</li>
           </ul>
         </div>
       </div>
@@ -554,7 +580,7 @@
         <tbody>
           <tr><td>1 Login</td><td>Shopify OAuth. Backend on Cloud Run api. Shop token in shopify_store_connections. Session cookie ac_pivot_auth on Cloud Run web.</td></tr>
           <tr><td>2 Auth</td><td>Cookie to BFF Bearer. store_members must be active. req.storeId on every query. Product login is Shopify pivot only (#253).</td></tr>
-          <tr><td>3 Import</td><td>Scheduler pulls Shopify / Google / Meta / Zendbox / Skio into the tables on the map. Database is Cloud SQL agentic_cart.</td></tr>
+          <tr><td>3 Import</td><td>Scheduler + dashboard catch-up pull vendors into Cloud SQL. On-hand is Shopify-first. Zendbox warehouse only.</td></tr>
           <tr><td>4 RLS</td><td>Postgres policies still exist (auth.uid / user_tenants). Live api uses PostgREST service_role so they do not gate merchants. Live gate is Express store_id.</td></tr>
           <tr><td>5 Render</td><td>Next.js fetches api JSON for the active store. React paints. Browser never talks to SQL.</td></tr>
           <tr><td>6 Recs</td><td>Scheduler agent jobs write agent_actions (hourly or 06:00 London, not all daily). Chat does not generate the cards.</td></tr>
